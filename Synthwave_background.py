@@ -1,3 +1,4 @@
+import copy
 import pygame
 import math
 import cv2
@@ -172,6 +173,38 @@ def bright_horizon():
 horizon = bright_horizon()
 
 y_p = (dim/2)*FOCAL_LENGTH/(FOCAL_LENGTH+FULL_Z)
+
+class MovingRectangle:
+    def __init__(self,real_pos,W,H):
+        self.real_pos = real_pos
+        self.real_W = W
+        self.real_H = H
+        self.z = copy.copy(FULL_Z)
+        self.adjustment_value = FOCAL_LENGTH/(self.z)
+        self.x_perceived = (real_pos[0]-SCREEN_WIDTH/2)*self.adjustment_value+(SCREEN_WIDTH/2)
+        self.y_perceived = real_pos[1] * self.adjustment_value
+        self.W_perceived = W*self.adjustment_value
+        self.H_perceived = H*self.adjustment_value
+        print(f"rect Z = {self.z}, adjustment_val={self.adjustment_value}")
+
+    def update(self):
+        self.z -= 40
+        self.adjustment_value = FOCAL_LENGTH/(self.z)
+        self.x_perceived = (self.real_pos[0]-SCREEN_WIDTH/2)*self.adjustment_value+(SCREEN_WIDTH/2)
+        self.y_perceived = self.real_pos[1] * self.adjustment_value
+        self.W_perceived = self.real_W*self.adjustment_value
+        self.H_perceived = self.real_H*self.adjustment_value
+        if self.z <= FOCAL_LENGTH:
+            self.z = copy.copy(FULL_Z)
+        print(f"Adjustment:{self.adjustment_value}")
+
+    def draw(self,surface):
+        rect = pygame.Rect(0,0,self.W_perceived,self.H_perceived)
+        rect.midbottom = (self.x_perceived,self.y_perceived)
+        pygame.draw.rect(surface,(255,0,0),rect,5)
+
+rect_1 = MovingRectangle((SCREEN_WIDTH/2,SCREEN_HEIGHT),100,76,)
+
 running = True
 while running:
     clock.tick(60)
@@ -189,6 +222,11 @@ while running:
     # pygame.draw.line(screen,grid_color,(0,y_p+(dim/2)),(dim,y_p+(dim/2)),5)
     X_lines.draw(grid_color,screen)
     X_lines.update()
+    rect_1.draw(screen)
+    rect_1.update()
+
+
+
     screen.blit(horizon,(0,(dim/2)+58-100),special_flags=pygame.BLEND_RGB_ADD)
 
     pygame.display.flip()
