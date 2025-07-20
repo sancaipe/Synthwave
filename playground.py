@@ -5,7 +5,7 @@ import cv2
 import random
 
 pygame.init()
-LARGE_RADIUS = 300
+LARGE_RADIUS = 190
 SMALL_RADIUS = 25
 dim = LARGE_RADIUS*4
 SCREEN_WIDTH,SCREEN_HEIGHT = dim,dim
@@ -15,10 +15,10 @@ clock = pygame.time.Clock()
 
 FOCAL_LENGTH = 1666
 grid_color = (4,196,202)
-VEL_Z = 50
+VEL_Z = 100
 
 
-y_p = 150 # Number of pixels below the midpoint at which I want the perceived bottom to show at FULL_Z
+y_p = 25 # Number of pixels below the midpoint at which I want the perceived bottom to show at FULL_Z
 # Need to solve for FULL_Z
 FULL_Z = (SCREEN_HEIGHT*FOCAL_LENGTH/2/y_p)-FOCAL_LENGTH # Distance from FOCAL LENGTH to the end of the world
 print(f"FULL_Z: {FULL_Z}")
@@ -61,13 +61,16 @@ class CenteredRectangle:
         self.h_real = h_real
         self.z = FULL_Z+FOCAL_LENGTH
         self.adjustment_val = FOCAL_LENGTH/self.z
+        self.x_perceived = (self.x_real-(dim/2)) * self.adjustment_val + (dim/2)
         self.w_perceived = self.w_real*self.adjustment_val
         self.h_perceived = self.h_real*self.adjustment_val
         self.y_perceived = (self.y_fromcenter*self.adjustment_val)+(SCREEN_HEIGHT/2)
 
-    def update(self):
+    def update(self,movement):
+        self.x_real += movement
         self.z -= self.vel_z
         self.adjustment_val = FOCAL_LENGTH/self.z
+        self.x_perceived = (self.x_real-(dim/2)) * self.adjustment_val + (dim/2)
         self.w_perceived = self.w_real*self.adjustment_val
         self.h_perceived = self.h_real*self.adjustment_val
         self.y_perceived = (self.y_fromcenter*self.adjustment_val)+(SCREEN_HEIGHT/2)
@@ -76,7 +79,7 @@ class CenteredRectangle:
 
     def draw(self,surface):
         rect = pygame.Rect(0,0,self.w_perceived,self.h_perceived)
-        rect.midbottom = (self.x_real,self.y_perceived)
+        rect.midbottom = (self.x_perceived,self.y_perceived)
         pygame.draw.rect(surface,(100,255,100),rect,2)
 
 rect1 = CenteredRectangle(SCREEN_HEIGHT,200,100,VEL_Z)
@@ -107,6 +110,43 @@ def grid_Z_lines():
     return surf
 grid_lines = grid_Z_lines()
 
+class GridZLines:
+    def __init__(self,LINES):
+        self.LINES=LINES
+        self.dx = (dim/2)/LINES # At the full depth, FOCAL LENGTH + FULL Z
+        self.x_positions_perceived = []
+        self.x_positions_real = []
+        for n in range(LINES+1):
+            x_perceived = (n*self.dx)
+            x_real = x_perceived*(FOCAL_LENGTH+FULL_Z)/FOCAL_LENGTH
+            self.x_positions_perceived.append(x_perceived) # Now you have all of the line positions for the right half of the screen. Will need to create a mirroring effect
+            self.x_positions_real.append(x_real)
+        for val_real,val_perceived in zip(self.x_positions_real[1:-1],self.x_positions_perceived[1:-1]):
+            self.x_positions_real.append(-val_real)
+            self.x_positions_perceived.append(-val_perceived)
+        print(self.x_positions_perceived,self.x_positions_real)
+
+    def update(self,dx):
+        self.x_positions_real = [x+dx for x in self.x_positions_real]
+        for i,x_real in enumerate(self.x_positions_real):
+            x_perceived = x_real*FOCAL_LENGTH/(FOCAL_LENGTH+FULL_Z)
+            if x_perceived <-(dim/2):
+                x_perceived = (dim/2)
+                self.x_positions_real[i] = x_perceived * (FOCAL_LENGTH+FULL_Z)/FOCAL_LENGTH
+            elif x_perceived > (dim/2):
+                x_perceived = -(dim/2)
+                self.x_positions_real[i] = x_perceived * (FOCAL_LENGTH+FULL_Z)/FOCAL_LENGTH
+            self.x_positions_perceived[i] = x_perceived
+
+    def draw(self,surface):
+        for x_real,x_perceived in zip(self.x_positions_real,self.x_positions_perceived):
+            pygame.draw.line(surface,grid_color,(x_real+(SCREEN_WIDTH/2),SCREEN_HEIGHT),(x_perceived+(SCREEN_WIDTH/2),(SCREEN_HEIGHT/2)+y_p))
+            # pygame.draw.line(surface,grid_color,(-x_real+(SCREEN_WIDTH/2),SCREEN_HEIGHT),(-x_perceived+(SCREEN_WIDTH/2),(SCREEN_HEIGHT/2)+y_p))
+            # Mirrored above the horizontal
+            pygame.draw.line(surface,grid_color,(x_real+(SCREEN_WIDTH/2),0),(x_perceived+(SCREEN_WIDTH/2),(SCREEN_HEIGHT/2)-y_p))
+            # pygame.draw.line(surface,grid_color,(-x_real+(SCREEN_WIDTH/2),0),(-x_perceived+(SCREEN_WIDTH/2),(SCREEN_HEIGHT/2)-y_p))
+Z_lines = GridZLines(18)    
+
 class GridXLines:
     def __init__(self,LINES,VEL_Z):
         self.LINES = LINES
@@ -134,6 +174,9 @@ class GridXLines:
 X_lines = GridXLines(10,VEL_Z)
 
 running = True
+moving = False
+movement_vel = 7
+rect_movement_vel = 0
 while running:
     clock.tick(60)
     screen.fill((0,0,0))
@@ -142,8 +185,22 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    screen.blit(universe_draw,(0,0))
-    screen.blit(grid_lines,(0,0))
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_LEFT]:
+        moving = True
+        movement = -movement_vel
+        rect_movement_vel = movement * 1
+    if keys[pygame.K_RIGHT]:
+        moving = True
+        movement = movement_vel
+        rect_movement_vel = movement * 1
+
+    if moving:
+        Z_lines.update(movement)
+
+    # screen.blit(universe_draw,(0,0))
+    # screen.blit(grid_lines,(0,0))
+    Z_lines.draw(screen)
     X_lines.draw(screen)
     X_lines.update()
 
@@ -156,9 +213,12 @@ while running:
     pygame.draw.rect(screen,(50,130,50),rect_static,2)
 
     rect1.draw(screen)
-    rect1.update()
+    rect1.update(rect_movement_vel)
+    # print(rect1.x_real)
 
-    print(clock.get_fps())
+    moving = False
+    rect_movement_vel = 0
+    # print(clock.get_fps())
     pygame.display.flip()
 
 pygame.quit()
