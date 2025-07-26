@@ -5,7 +5,7 @@ import cv2
 import random
 
 pygame.init()
-LARGE_RADIUS = 190
+LARGE_RADIUS = 300
 SMALL_RADIUS = 25
 dim = LARGE_RADIUS*4
 SCREEN_WIDTH,SCREEN_HEIGHT = dim,dim
@@ -15,7 +15,7 @@ clock = pygame.time.Clock()
 
 FOCAL_LENGTH = 1666
 grid_color = (4,196,202)
-VEL_Z = 25
+VEL_Z = 75
 STARS = 100
 
 
@@ -53,15 +53,16 @@ universe_draw.blit(star_draw,(0,0),special_flags=pygame.BLEND_RGB_ADD)
 def stars_surface():
     surf = pygame.Surface((dim,dim))
     surf.fill((0,0,0))
-    for n in range(STARS):
+    for _ in range(STARS):
         x = random.randint(1,dim)
         y = random.randint((dim/2)-y_p,(dim/2)+y_p)
-        pygame.draw.circle(surf,(255,255,255),(x,y),1)
+        pygame.draw.circle(surf,(180,180,180),(x,y),1)
     surf.set_colorkey((0,0,0))
     return surf
 stars_surf = stars_surface()
 
 class MovingRectangle:
+    _instances = []
     def __init__(self,x_real,y_real,z,w_real,h_real,vel_z,color):
         self.color = color
         self.vel_z = vel_z
@@ -76,22 +77,27 @@ class MovingRectangle:
         self.w_perceived = self.w_real*self.adjustment_val
         self.h_perceived = self.h_real*self.adjustment_val
         self.y_perceived = (self.y_fromcenter*self.adjustment_val)+(SCREEN_HEIGHT/2)
+        MovingRectangle._instances.append(self)
 
-    def update(self,movement):
-        self.x_real += movement
-        self.z -= self.vel_z
-        self.adjustment_val = FOCAL_LENGTH/self.z
-        self.x_perceived = (self.x_real-(dim/2)) * self.adjustment_val + (dim/2)
-        self.w_perceived = self.w_real*self.adjustment_val
-        self.h_perceived = self.h_real*self.adjustment_val
-        self.y_perceived = (self.y_fromcenter*self.adjustment_val)+(SCREEN_HEIGHT/2)
-        if self.z <= FOCAL_LENGTH-250:
-            self.z = FULL_Z+FOCAL_LENGTH
+    @classmethod
+    def update(cls,movement):
+        for obj in cls._instances:
+            obj.x_real += movement
+            obj.z -= obj.vel_z
+            obj.adjustment_val = FOCAL_LENGTH/obj.z
+            obj.x_perceived = (obj.x_real-(dim/2)) * obj.adjustment_val + (dim/2)
+            obj.w_perceived = obj.w_real*obj.adjustment_val
+            obj.h_perceived = obj.h_real*obj.adjustment_val
+            obj.y_perceived = (obj.y_fromcenter*obj.adjustment_val)+(SCREEN_HEIGHT/2)
+            if obj.z <= FOCAL_LENGTH-250:
+                obj.z = FULL_Z+FOCAL_LENGTH
 
-    def draw(self,surface):
-        rect = pygame.Rect(0,0,self.w_perceived,self.h_perceived)
-        rect.midbottom = (self.x_perceived,self.y_perceived)
-        pygame.draw.rect(surface,self.color,rect)
+    @classmethod
+    def draw(cls,surface):
+        for obj in cls._instances:
+            rect = pygame.Rect(0,0,obj.w_perceived,obj.h_perceived)
+            rect.midbottom = (obj.x_perceived,obj.y_perceived)
+            pygame.draw.rect(surface,obj.color,rect)
 
 rect1 = MovingRectangle(SCREEN_WIDTH/2,SCREEN_HEIGHT,FULL_Z+FOCAL_LENGTH,200,100,VEL_Z,(100,255,100))
 rect2 = MovingRectangle(SCREEN_WIDTH/2-300,SCREEN_HEIGHT,FOCAL_LENGTH+1800,200,100,VEL_Z,(255,100,100))
@@ -184,6 +190,14 @@ while running:
         moving = True
         movement = -movement_vel
         rect_movement_vel = movement * 1
+    if keys[pygame.K_UP]:
+        X_lines.VEL_Z += 1
+        for instance in MovingRectangle._instances:
+            instance.vel_z += 1
+    if keys[pygame.K_DOWN]:
+        X_lines.VEL_Z -= 1
+        for instance in MovingRectangle._instances:
+            instance.vel_z -= 1
 
     if moving:
         Z_lines.update(movement)
@@ -205,10 +219,8 @@ while running:
     pygame.draw.line(screen,(180,180,255),(0,(SCREEN_HEIGHT/2)-y_p),(SCREEN_WIDTH,(SCREEN_HEIGHT/2)-y_p))
     pygame.draw.rect(screen,(50,130,50),rect_static,2)
 
-    rect1.draw(screen)
-    rect2.draw(screen)
-    rect1.update(rect_movement_vel)
-    rect2.update(rect_movement_vel)
+    MovingRectangle.draw(screen)
+    MovingRectangle.update(rect_movement_vel)
     # print(rect1.x_real)
 
     moving = False
