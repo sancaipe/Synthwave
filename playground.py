@@ -15,14 +15,18 @@ clock = pygame.time.Clock()
 
 FOCAL_LENGTH = 1666
 grid_color = (4,196,202)
-VEL_Z = 75
+VEL_Z = 76
 STARS = 100
 
+text_font = pygame.font.Font(None,30)
+max_speed_font = text_font.render("Max speed!",True,(255,125,100))
+min_speed_font = text_font.render("Min speed!",True,(255,255,255))
 
-y_p = 50 # Number of pixels below the midpoint at which I want the perceived bottom to show at FULL_Z
+y_p = 80 # Number of pixels below the midpoint at which I want the perceived bottom to show at FULL_Z
 # Need to solve for FULL_Z
 FULL_Z = (SCREEN_HEIGHT*FOCAL_LENGTH/2/y_p)-FOCAL_LENGTH # Distance from FOCAL LENGTH to the end of the world
 FULL_HALF_WIDTH = (dim/2)*(FOCAL_LENGTH+FULL_Z)/FOCAL_LENGTH
+print(f"FULL Z: {FULL_Z}")
 
 def draw_universe():
     surf = pygame.Surface((SCREEN_HEIGHT,SCREEN_WIDTH))
@@ -99,8 +103,6 @@ class MovingRectangle:
             rect.midbottom = (obj.x_perceived,obj.y_perceived)
             pygame.draw.rect(surface,obj.color,rect)
 
-rect1 = MovingRectangle(SCREEN_WIDTH/2,SCREEN_HEIGHT,FULL_Z+FOCAL_LENGTH,200,100,VEL_Z,(100,255,100))
-rect2 = MovingRectangle(SCREEN_WIDTH/2-300,SCREEN_HEIGHT,FOCAL_LENGTH+1800,200,100,VEL_Z,(255,100,100))
 
 rect_static = pygame.Rect(0,0,200,100)
 rect_static.midbottom = (SCREEN_WIDTH/2,SCREEN_HEIGHT)
@@ -119,7 +121,7 @@ class GridZLines:
         for val_real,val_perceived in zip(self.x_positions_real[1:-1],self.x_positions_perceived[1:-1]):
             self.x_positions_real.append(-val_real)
             self.x_positions_perceived.append(-val_perceived)
-        print(self.x_positions_perceived,self.x_positions_real)
+        # print(self.x_positions_perceived,self.x_positions_real)
 
     def update(self,dx):
         self.x_positions_real = [x+dx for x in self.x_positions_real]
@@ -145,16 +147,29 @@ Z_lines = GridZLines((dim/2))
 class GridXLines:
     def __init__(self,LINES,VEL_Z):
         self.LINES = LINES
-        self.VEL_Z = VEL_Z
         self.lines_positions = []
-        self.dz = (FULL_Z/self.LINES)
+        self.dz = ((FULL_Z)/self.LINES)
         for n in range (LINES):
             starting_Z = (FULL_Z+FOCAL_LENGTH)-(n*self.dz)
             self.lines_positions.append(starting_Z)
+        self.VEL_Z = round(self.dz*0.001,4)
+        print(self.dz,self.VEL_Z)
+        print(self.lines_positions)
 
     def update(self):
-        self.lines_positions = [z-self.VEL_Z for z in self.lines_positions]
+        self.lines_positions = [round(z-self.VEL_Z,4) for z in self.lines_positions]
+        # for i,z in enumerate(self.lines_positions):
+        #     if i < len(self.lines_positions)-1:
+        #         if z <= FOCAL_LENGTH and not (FOCAL_LENGTH+FULL_Z-self.lines_positions[i+1])<self.dz:
+        #             self.lines_positions[i]=FOCAL_LENGTH+FULL_Z
+        #     if i == len(self.lines_positions)-1:
+        #         if z <= FOCAL_LENGTH and not (FOCAL_LENGTH+FULL_Z-self.lines_positions[0])<self.dz:
+        #             self.lines_positions[i]=FOCAL_LENGTH+FULL_Z
+
+
         self.lines_positions = [z if z >= FOCAL_LENGTH else (FULL_Z+FOCAL_LENGTH) for z in self.lines_positions]
+        if FULL_Z+FOCAL_LENGTH in self.lines_positions:
+            print(self.lines_positions, self.VEL_Z)
 
     def draw(self,surface):
         draw_y_perceived = [((dim/2)*FOCAL_LENGTH/z)+(dim/2) for z in self.lines_positions]
@@ -167,12 +182,18 @@ class GridXLines:
 
 
 X_lines = GridXLines(10,VEL_Z)
+rect1 = MovingRectangle(SCREEN_WIDTH/2,SCREEN_HEIGHT,FULL_Z+FOCAL_LENGTH,200,100,X_lines.VEL_Z,(100,255,100))
+rect2 = MovingRectangle(SCREEN_WIDTH/2-300,SCREEN_HEIGHT,FOCAL_LENGTH+1800,200,100,X_lines.VEL_Z,(255,100,100))
 
 running = True
 moving = False
-movement_vel = 20
+movement_vel = 45
 rect_movement_vel = 0
+VEL_Z_MAX = X_lines.dz*0.25
 
+# speed_rect_outline_surf = pygame.Surface((25,250))
+# pygame.draw.rect(speed_rect_outline_surf,(255,255,255),(0,0,25,250),4)
+# speed_rect_outline_surf.set_colorkey((0,0,0))
 while running:
     clock.tick(60)
     screen.fill((0,0,0))
@@ -191,13 +212,23 @@ while running:
         movement = -movement_vel
         rect_movement_vel = movement * 1
     if keys[pygame.K_UP]:
-        X_lines.VEL_Z += 1
-        for instance in MovingRectangle._instances:
-            instance.vel_z += 1
+        if X_lines.VEL_Z < VEL_Z_MAX:
+            X_lines.VEL_Z += 0.001*X_lines.dz
+            X_lines.VEL_Z = X_lines.VEL_Z
+            for instance in MovingRectangle._instances:
+                instance.vel_z = X_lines.VEL_Z*1
+        else:
+            # print("Max Speed!")
+            screen.blit(max_speed_font,((dim/2)-250,(dim/2)-15))
     if keys[pygame.K_DOWN]:
-        X_lines.VEL_Z -= 1
-        for instance in MovingRectangle._instances:
-            instance.vel_z -= 1
+        if X_lines.VEL_Z >0.001:
+            X_lines.VEL_Z -= 0.001*X_lines.dz
+            X_lines.VEL_Z = X_lines.VEL_Z
+            for instance in MovingRectangle._instances:
+                instance.vel_z = X_lines.VEL_Z*1
+        else:
+            # print("Min Speed!")
+            screen.blit(min_speed_font,((dim/2)-250,(dim/2)-15))
 
     if moving:
         Z_lines.update(movement)
@@ -226,6 +257,22 @@ while running:
     moving = False
     rect_movement_vel = 0
     # print(clock.get_fps())
+    
+    # Draw the speed indicator, most of this is dependent on the dimensions of the defined outline rect and the max vel currently set to 500 in the if statement of the get_pressed()
+    # screen.blit(speed_rect_outline_surf,(25,(dim/2)-125))
+    vel_ratio = (X_lines.VEL_Z/VEL_Z_MAX)
+
+    if vel_ratio >= 0.5:
+        R_val = 255
+        G_val = 255 - ((vel_ratio-0.5)/0.5)*255
+    elif 0 <= vel_ratio < 0.5:
+        R_val = 255 * (vel_ratio/0.5) 
+        G_val = 255
+    print(X_lines.VEL_Z,VEL_Z_MAX)
+    pygame.draw.rect(screen,(0,0,0),(25,(dim/2)-125,25,250))
+    pygame.draw.rect(screen,(R_val,G_val,0),(25,(dim/2+125)-(vel_ratio*250),25,vel_ratio*250))
+    pygame.draw.rect(screen,(255,255,255),(25,(dim/2)-125,25,250),2)
+
     pygame.display.flip()
 
 pygame.quit()
