@@ -123,8 +123,8 @@ def all_together_blackhole(oval,oval_rect,black_hole,black_hole_glow,fwd_oval,fw
 full_black_hole = all_together_blackhole(oval_surf,oval_rect,black_hole,black_hole_glow,fwd_oval_surf,fwd_oval_rect,glow_spot,glow_spot_rect1,glow_spot_rect2)
 full_black_hole = pygame.transform.rotate(full_black_hole,25)
 full_black_hole_rect = full_black_hole.get_rect(center=(SCREEN_WIDTH/2,SCREEN_HEIGHT/2))
-new_width = full_black_hole.get_width()*1.0
-new_height = full_black_hole.get_height()*1.0
+new_width = full_black_hole.get_width()*0.5
+new_height = full_black_hole.get_height()*0.5
 
 scaled_black_hole = pygame.transform.smoothscale(full_black_hole,(new_width,new_height))
 scaled_black_hole_rect = scaled_black_hole.get_rect(center=(SCREEN_WIDTH/2,SCREEN_HEIGHT/2))
